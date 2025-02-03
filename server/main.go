@@ -39,11 +39,7 @@ type OIDCClaims struct {
 
 func NewOIDCClaimMapper() *OIDCClaimMapper {
 	issuerURL := os.Getenv("TEMPORAL_OIDC_ISSUER_URL")
-	fmt.Printf("Issuer URL: %q\n", issuerURL)
-
 	clientID := os.Getenv("TEMPORAL_OIDC_CLIENT_ID")
-	fmt.Printf("Client ID: %q\n", clientID)
-
 	jwksURL := issuerURL + "/.well-known/jwks.json"
 
 	keySet, err := jwk.Fetch(context.Background(), jwksURL)
@@ -68,19 +64,18 @@ func (c *OIDCClaimMapper) GetClaims(authInfo *authorization.AuthInfo) (*authoriz
 		return authClaims, nil
 	}
 
-	// Parse the JWT token and extract PocketID claims
-	// Note: You'll need to implement proper JWT validation using your PocketID public key
-	pocketIDClaims, err := c.extractAndValidateToken(authInfo.AuthToken)
+	// Parse the JWT token and extract OIDC claims
+	claims, err := c.extractAndValidateToken(authInfo.AuthToken)
 	if err != nil {
 		log.Printf("Failed to validate token: %v", err)
 		return nil, fmt.Errorf("failed to validate token: %w", err)
 	}
 
-	authClaims.Subject = pocketIDClaims.Subject
+	authClaims.Subject = claims.Subject
 	authClaims.Namespaces = make(map[string]authorization.Role)
 
 	// Map PocketID groups to Temporal namespace access
-	for _, group := range pocketIDClaims.Groups {
+	for _, group := range claims.Groups {
 		switch {
 		case group == "admin":
 			// Admins can access ALL namespaces
@@ -137,8 +132,6 @@ func (c *OIDCClaimMapper) extractAndValidateToken(token string) (*OIDCClaims, er
 		return nil, fmt.Errorf("failed to decode userinfo response: %w", err)
 	}
 
-	log.Printf("UserInfo response: %+v\n", userInfo)
-
 	return &OIDCClaims{
 		Subject:           userInfo.Subject,
 		Email:             userInfo.Email,
@@ -160,7 +153,6 @@ func (a *OIDCAuthorizer) Authorize(ctx context.Context, claims *authorization.Cl
 	// TODO:
 	// WHY are we getting no no claims and NO namespace...
 
-	// Deny if no claims exist (unauthenticated request)
 	if claims == nil || target.Namespace == "" {
 		log.Printf("No claims or namespace provided for request to %s -> ALLOWED, target: %+v", target.APIName, target)
 		return decisionAllow, nil
@@ -171,8 +163,6 @@ func (a *OIDCAuthorizer) Authorize(ctx context.Context, claims *authorization.Cl
 
 	// Determine whether this is a cluster-wide or namespace-scoped API
 	metadata := api.GetMethodMetadata(target.APIName)
-
-	log.Printf("Metadata: %+v", metadata)
 
 	var userRole authorization.Role
 	switch metadata.Scope {

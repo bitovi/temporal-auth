@@ -5,7 +5,7 @@ allow_k8s_contexts('docker-desktop')
 # Force everything to deploy to the `temporal` namespace
 k8s_namespace('temporal')
 
-# Load environment variables
+# Load environment variables and print for debugging
 dotenv()
 
 # Create Kubernetes secret from environment variables
@@ -21,9 +21,9 @@ stringData:
   client_id: "{}"
   client_secret: "{}"
 """.format(
-    os.getenv('TEMPORAL_AUTH_ISSUER_URL', ''),
-    os.getenv('TEMPORAL_AUTH_CLIENT_ID', ''),
-    os.getenv('TEMPORAL_AUTH_CLIENT_SECRET', '')
+    os.getenv('TEMPORAL_OIDC_ISSUER_URL', ''),
+    os.getenv('TEMPORAL_OIDC_CLIENT_ID', ''),
+    os.getenv('TEMPORAL_OIDC_CLIENT_SECRET', '')
 )))
 
 # Build custom Temporal server with auth

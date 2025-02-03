@@ -104,6 +104,9 @@ Common issues and solutions:
    - Verify Kubernetes secrets are created
    - Check pod logs for runtime errors
 
+4. **Creating a new namespace**
+   - Run `tctl --ns bitovi-project n re`
+
 ## Contributing
 
 1. Fork the repository

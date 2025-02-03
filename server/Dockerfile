@@ -47,12 +47,5 @@ RUN chmod +x /app/temporal-auth-server
 # Set back to root for final runtime setup
 USER root
 
-# Add a script to print environment variables and start the server
-RUN echo '#!/bin/sh\n\
-echo "Environment variables:"\n\
-env | grep TEMPORAL\n\
-exec /app/temporal-auth-server "$@"' > /app/start.sh && \
-chmod +x /app/start.sh
-
 # Use the start script as entrypoint
-ENTRYPOINT ["/app/start.sh"]
+ENTRYPOINT ["/app/temporal-auth-server"]

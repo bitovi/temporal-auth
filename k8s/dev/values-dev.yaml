@@ -1,0 +1,107 @@
+namespaceOverride: temporal
+
+server:
+  image:
+    repository: temporal-auth-server
+    tag: latest
+    pullPolicy: Never
+  command: ["/app/temporal-auth-server"]
+  additionalEnv:
+    - name: TEMPORAL_OIDC_ISSUER_URL
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: issuer_url
+    - name: TEMPORAL_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: client_id
+  frontend:
+    service:
+      type: ClusterIP  # Use ClusterIP for local development
+  metrics:
+    serviceMonitor:
+      enabled: false  
+  config:
+    persistence:
+      defaultStore: default
+      disableClusterMetadataPersistence: true
+      default:
+        driver: "sql"
+        sql:
+          driver: "postgres12"
+          host: "postgres-postgresql.postgres.svc.cluster.local"
+          port: 5432
+          database: "temporal"
+          user: "temporal"
+          password: "temporal"
+          maxConns: 20
+          maxConnLifetime: "1h"
+      visibility:
+        driver: "sql"
+        sql:
+          driver: "postgres12"
+          host: "postgres-postgresql.postgres.svc.cluster.local"
+          port: 5432
+          database: "temporal_visibility"
+          user: "temporal"
+          password: "temporal"
+          maxConns: 20
+          maxConnLifetime: "1h"
+
+web:
+  enabled: true
+  additionalEnv:
+    - name: TEMPORAL_AUTH_ENABLED
+      value: "true"
+    - name: TEMPORAL_AUTH_PROVIDER_URL
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: issuer_url
+    - name: TEMPORAL_AUTH_ISSUER_URL
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: issuer_url
+    - name: TEMPORAL_AUTH_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: client_id
+    - name: TEMPORAL_AUTH_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: client_secret
+    - name: TEMPORAL_AUTH_CALLBACK_URL
+      value: "http://localhost:8080/auth/sso/callback"
+    - name: TEMPORAL_AUTH_SCOPES
+      value: "openid,email,profile"
+
+postgresql:
+  enabled: false
+
+mysql:
+  enabled: false
+
+cassandra:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+
+elasticsearch:
+  enabled: false
+
+schema:
+  createDatabase:
+    enabled: true
+  setup:
+    enabled: true
+  update:
+    enabled: true

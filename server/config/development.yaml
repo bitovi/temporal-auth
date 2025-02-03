@@ -1,0 +1,87 @@
+log:
+  stdout: true
+  level: "debug,info"
+
+persistence:
+  defaultStore: default
+  visibilityStore: visibility
+  numHistoryShards: 512
+  datastores:
+    default:
+      sql:
+        pluginName: "postgres12"
+        driverName: "postgres12"
+        databaseName: "temporal"
+        connectAddr: "postgres-postgresql.postgres.svc.cluster.local:5432"
+        connectProtocol: "tcp"
+        user: temporal
+        password: "temporal"
+        maxConnLifetime: 1h
+        maxConns: 20
+        secretName: ""
+    visibility:
+      sql:
+        pluginName: "postgres12"
+        driverName: "postgres12"
+        databaseName: "temporal_visibility"
+        connectAddr: "postgres-postgresql.postgres.svc.cluster.local:5432"
+        connectProtocol: "tcp"
+        user: "temporal"
+        password: "temporal"
+        maxConnLifetime: 1h
+        maxConns: 20
+        secretName: ""
+
+global:
+  membership:
+    maxJoinDuration: 30s
+    broadcastAddress: "127.0.0.1"
+  pprof:
+    port: 7936
+
+services:
+  frontend:
+    rpc:
+      grpcPort: 7233
+      httpPort: 7243
+      membershipPort: 6933
+      bindOnIP: "0.0.0.0"
+
+  history:
+    rpc:
+      grpcPort: 7234
+      membershipPort: 6934
+      bindOnIP: "0.0.0.0"
+
+  matching:
+    rpc:
+      grpcPort: 7235
+      membershipPort: 6935
+      bindOnIP: "0.0.0.0"
+
+  worker:
+    rpc:
+      membershipPort: 6939
+      bindOnIP: "0.0.0.0"
+
+clusterMetadata:
+  enableGlobalDomain: false
+  failoverVersionIncrement: 10
+  masterClusterName: "active"
+  currentClusterName: "active"
+  clusterInformation:
+    active:
+      enabled: true
+      initialFailoverVersion: 1
+      rpcName: "temporal-frontend"
+      rpcAddress: "127.0.0.1:7233"
+      httpAddress: "127.0.0.1:7243"
+
+dcRedirectionPolicy:
+  policy: "noop"
+  toDC: ""
+
+archival:
+  status: "disabled"
+publicClient:
+  hostPort: "temporal-frontend:7233"

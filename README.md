@@ -1,4 +1,5 @@
 # Temporal Auth Server
+[![Static Badge for Temporal Code Exchange](https://img.shields.io/badge/Temporal-Code_Exchange_Featured-blue?style=flat-square&logo=temporal&labelColor=141414&color=444CE7)](https://temporal.io/code-exchange/role-based-authentication-for-self-hosted-temporal) 
 
 This repository provides a custom authentication and authorization solution for Temporal, integrating with a custom OIDC provider for user authentication and role-based access control.
 

@@ -19,6 +19,17 @@ RUN mkdir -p /go/pkg/mod /go/build && \
     chown -R temporaluser:temporaluser /go/pkg /go/build /app && \
     chmod -R 777 /go/pkg /go/build /app
 
+# Install gomplate (multi-arch: amd64/arm64)
+ARG GOMPLATE_VERSION=v3.11.5
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN set -eux; \
+    echo "Installing gomplate ${GOMPLATE_VERSION} for ${TARGETOS:-linux}-${TARGETARCH}"; \
+    case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported arch: ${TARGETARCH}"; exit 1;; esac; \
+    curl -fsSL -o /usr/local/bin/gomplate "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH}"; \
+    chmod +x /usr/local/bin/gomplate; \
+    /usr/local/bin/gomplate -v
+
 # Set environment variables for CGO to work
 ENV CGO_ENABLED=1
 ENV CC=gcc
@@ -41,11 +52,13 @@ COPY --chown=temporaluser:temporaluser . .
 # Build the Go binary
 RUN go build -o /app/temporal-auth-server main.go
 
-# Ensure the binary has execute permissions
+# Ensure  execute permissions
 RUN chmod +x /app/temporal-auth-server
+RUN chmod +x /app/startup.sh
+RUN mkdir -p /app/config
 
 # Set back to root for final runtime setup
 USER root
 
 # Use the start script as entrypoint
-ENTRYPOINT ["/app/temporal-auth-server"]
+ENTRYPOINT ["/app/startup.sh"]

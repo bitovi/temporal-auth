@@ -1,3 +1,5 @@
 **/temporal-generated.yaml
 # Environment variables
 .env
+
+manifest.yml

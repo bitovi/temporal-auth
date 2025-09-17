@@ -1,0 +1,126 @@
+server:
+  image: 
+    repository: temporal-auth # Update to your custom repo+image
+    tag: latest # Update to your custom tag
+    imagePullPolicy: Never # Only used for local testing
+
+  frontend:
+    additionalEnv:
+      - name: TEMPORAL_CONFIG_FILENAME
+        value: config
+      - name: TEMPORAL_CONFIG_PATH
+        value: /app/config
+      - name: TEMPORAL_CONFIG_TEMPLATE_PATH
+        value: /etc/temporal/config/config_template.yaml
+      - name: TEMPORAL_OIDC_ISSUER_URL
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: issuer_url
+      - name: TEMPORAL_OIDC_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_id
+      - name: TEMPORAL_AUTH_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_secret
+  history:
+    additionalEnv:
+      - name: TEMPORAL_CONFIG_FILENAME
+        value: config
+      - name: TEMPORAL_CONFIG_PATH
+        value: /app/config
+      - name: TEMPORAL_CONFIG_TEMPLATE_PATH
+        value: /etc/temporal/config/config_template.yaml
+      - name: TEMPORAL_OIDC_ISSUER_URL
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: issuer_url
+      - name: TEMPORAL_OIDC_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_id
+      - name: TEMPORAL_AUTH_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_secret
+  matching:
+    additionalEnv:
+      - name: TEMPORAL_CONFIG_FILENAME
+        value: config
+      - name: TEMPORAL_CONFIG_PATH
+        value: /app/config
+      - name: TEMPORAL_CONFIG_TEMPLATE_PATH
+        value: /etc/temporal/config/config_template.yaml
+      - name: TEMPORAL_OIDC_ISSUER_URL
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: issuer_url
+      - name: TEMPORAL_OIDC_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_id
+      - name: TEMPORAL_AUTH_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_secret
+  worker:
+    additionalEnv:
+      - name: TEMPORAL_CONFIG_FILENAME
+        value: config
+      - name: TEMPORAL_CONFIG_PATH
+        value: /app/config
+      - name: TEMPORAL_CONFIG_TEMPLATE_PATH
+        value: /etc/temporal/config/config_template.yaml
+      - name: TEMPORAL_OIDC_ISSUER_URL
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: issuer_url
+      - name: TEMPORAL_OIDC_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_id
+      - name: TEMPORAL_AUTH_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: temporal-auth-secrets
+            key: client_secret
+
+
+# Services
+cassandra:
+  enabled: true
+  config:
+    cluster_size: 1
+elasticsearch:
+  enabled: true
+  replicas: 1
+# --- #
+postgresql:
+  enabled: false
+mysql:
+  enabled: false
+grafana:
+  enabled: false
+prometheus:
+  enabled: false
+
+# Service setup
+schema:
+  createDatabase:
+    enabled: true
+  setup:
+    enabled: true
+  update:
+    enabled: true

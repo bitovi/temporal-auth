@@ -17,7 +17,7 @@ This repository provides a custom authentication and authorization solution for 
 ## Prerequisites
 
 - Docker Desktop with Kubernetes enabled
-- [Tilt](https://tilt.dev/) for local development
+- [kind](https://kind.sigs.k8s.io/docs/user/quick-start/) for local development
 - [Helm](https://helm.sh/) for Kubernetes deployments
 - Go 1.23 or later
 
@@ -29,17 +29,49 @@ git clone https://github.com/your-repo/temporal-auth-server.git
 cd temporal-auth-server
 ```
 
-2. Copy the environment template and fill in your values:
+2. Create the kind cluster
+```bash
+mkdir -p ~/.kube && touch ~/.kube/temporal-custom-auth
+export KUBECONFIG=~/.kube/temporal-custom-auth
+kind create cluster --name temporal-custom-auth --wait 5m
+```
 
-## Configuration
+3. Add the docker image to the kind cluster
+```bash
+kind load docker-image temporal-auth:latest --name temporal-custom-auth
+```
 
-### Authentication
+4. Update and apply the values in [auth_secrets.yml](./infra/auth_secrets.yml)
+```bash
+kubectl apply -f auth_secrets.yml 
+```
 
-Authentication is configured through environment variables and Kubernetes secrets:
+5. Verify the deployment
 
-- `TEMPORAL_AUTH_ISSUER_URL`: OIDC issuer URL
-- `TEMPORAL_AUTH_CLIENT_ID`: OAuth client ID
-- `TEMPORAL_AUTH_CLIENT_SECRET`: OAuth client secret
+```bash
+helm template \
+    temporal-auth \
+    temporalio/temporal \
+    --version 0.65.0 \
+    -f infra/values.yml > manifest.yml
+```
+
+6. Deploy Temporal 
+
+```bash
+helm upgrade \
+    --install \
+    temporal-auth \
+    temporalio/temporal \
+    --version 0.65.0 \
+    -f infra/values.yml
+```
+
+## Cleaning up the environment
+```bash
+helm uninstall temporal-auth
+kubectl delete secrets/temporal-auth-secrets
+```
 
 ### Authorization
 
@@ -115,5 +147,4 @@ Common issues and solutions:
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
-
 

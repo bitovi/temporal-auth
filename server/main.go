@@ -207,13 +207,39 @@ func getRequiredRole(access api.Access) authorization.Role {
 func main() {
 	log.Println("🚀 Starting Temporal Server with OIDC Authentication...")
 
-	cfg, err := config.LoadConfig("development", "./config", "")
+	startService := []string{}
+
+	// Get Target Service
+	temporalService := os.Getenv("SERVICES")
+	if temporalService != "" {
+		log.Printf("Starting service: %s", temporalService)
+		if temporalService != "frontend" && temporalService != "matching" && temporalService != "history" && temporalService != "worker" {
+			log.Fatalf("Invalid SERVICES: %s", temporalService)
+		}
+		startService = []string{temporalService}
+
+	} else {
+		log.Printf("Starting all services")
+		startService = temporal.DefaultServices
+	}
+
+
+	configFn := os.Getenv("TEMPORAL_CONFIG_FILENAME")
+	if configFn == "" {
+		configFn = "development"
+	}
+	configPath := os.Getenv("TEMPORAL_CONFIG_PATH")
+	if configPath == "" {
+		configPath = "./config"
+	}
+
+	cfg, err := config.LoadConfig(configFn, configPath, "")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	s, err := temporal.NewServer(
-		temporal.ForServices(temporal.DefaultServices),
+		temporal.ForServices(startService),
 		temporal.WithConfig(cfg),
 		temporal.InterruptOn(temporal.InterruptCh()),
 

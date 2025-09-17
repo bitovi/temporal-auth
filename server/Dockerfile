@@ -1,5 +1,5 @@
 # Build Stage: Use latest Go version
-FROM golang:1.23.2 AS builder
+FROM golang:1.24.5 AS builder
 
 WORKDIR /app
 

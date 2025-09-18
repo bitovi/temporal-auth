@@ -36,17 +36,22 @@ export KUBECONFIG=~/.kube/temporal-custom-auth
 kind create cluster --name temporal-custom-auth --wait 5m
 ```
 
-3. Add the docker image to the kind cluster
+3. Build the docker iamge
+```bash
+docker build -t temporal-auth:latest .
+```
+
+4. Add the docker image to the kind cluster
 ```bash
 kind load docker-image temporal-auth:latest --name temporal-custom-auth
 ```
 
-4. Update and apply the values in [auth_secrets.yml](./infra/auth_secrets.yml)
+5. Update and apply the values in [auth_secrets.yml](./infra/auth_secrets.yml)
 ```bash
 kubectl apply -f auth_secrets.yml 
 ```
 
-5. Verify the deployment
+6. Verify the deployment
 
 ```bash
 helm template \
@@ -56,7 +61,7 @@ helm template \
     -f infra/values.yml > manifest.yml
 ```
 
-6. Deploy Temporal 
+7. Deploy Temporal 
 
 ```bash
 helm upgrade \

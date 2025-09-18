@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +38,7 @@ type OIDCClaims struct {
 	PreferredUsername string   `json:"preferred_username"`
 }
 
-func NewOIDCClaimMapper() *OIDCClaimMapper {
+func NewOIDCClaimMapper() authorization.ClaimMapper {
 	issuerURL := os.Getenv("TEMPORAL_OIDC_ISSUER_URL")
 	clientID := os.Getenv("TEMPORAL_OIDC_CLIENT_ID")
 	jwksURL := issuerURL + "/.well-known/jwks.json"
@@ -45,7 +46,7 @@ func NewOIDCClaimMapper() *OIDCClaimMapper {
 	keySet, err := jwk.Fetch(context.Background(), jwksURL)
 	if err != nil {
 		// Handle error appropriately for your application
-		return nil
+		return &OIDCClaimMapper{}
 	}
 
 	return &OIDCClaimMapper{
@@ -141,6 +142,10 @@ func (c *OIDCClaimMapper) extractAndValidateToken(token string) (*OIDCClaims, er
 	}, nil
 }
 
+func NewOIDCAuthorizer() authorization.Authorizer {
+	return &OIDCAuthorizer{}
+}
+
 type OIDCAuthorizer struct{}
 
 func (a *OIDCAuthorizer) Authorize(ctx context.Context, claims *authorization.Claims, target *authorization.CallTarget) (authorization.Result, error) {
@@ -223,7 +228,6 @@ func main() {
 		startService = temporal.DefaultServices
 	}
 
-
 	configFn := os.Getenv("TEMPORAL_CONFIG_FILENAME")
 	if configFn == "" {
 		configFn = "development"
@@ -238,6 +242,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	oidc := NewOIDCClaimMapper()
+	claim := NewOIDCAuthorizer()
+
+	if slices.Contains(startService, "internal-frontend") {
+		oidc = authorization.NewNoopClaimMapper()
+		claim = authorization.NewNoopAuthorizer()
+	}
+
 	s, err := temporal.NewServer(
 		temporal.ForServices(startService),
 		temporal.WithConfig(cfg),
@@ -245,11 +257,11 @@ func main() {
 
 		// Inject Custom ClaimMapper
 		temporal.WithClaimMapper(func(cfg *config.Config) authorization.ClaimMapper {
-			return NewOIDCClaimMapper()
+			return oidc
 		}),
 
 		// Inject Custom Authorizer
-		temporal.WithAuthorizer(&OIDCAuthorizer{}),
+		temporal.WithAuthorizer(claim),
 	)
 	if err != nil {
 		log.Fatal(err)

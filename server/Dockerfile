@@ -19,16 +19,12 @@ RUN mkdir -p /go/pkg/mod /go/build && \
     chown -R temporaluser:temporaluser /go/pkg /go/build /app && \
     chmod -R 777 /go/pkg /go/build /app
 
-# Install gomplate (multi-arch: amd64/arm64)
-ARG GOMPLATE_VERSION=v3.11.5
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
-RUN set -eux; \
-    echo "Installing gomplate ${GOMPLATE_VERSION} for ${TARGETOS:-linux}-${TARGETARCH}"; \
-    case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported arch: ${TARGETARCH}"; exit 1;; esac; \
-    curl -fsSL -o /usr/local/bin/gomplate "https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_${TARGETOS:-linux}-${TARGETARCH}"; \
-    chmod +x /usr/local/bin/gomplate; \
-    /usr/local/bin/gomplate -v
+ENV DOCKERIZE_VERSION v0.9.0
+
+RUN apt-get update \
+    && apt-get install -y wget \
+    && wget -O - https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-arm64-$DOCKERIZE_VERSION.tar.gz | tar xzf - -C /usr/local/bin \
+    && apt-get autoremove -yqq --purge wget && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables for CGO to work
 ENV CGO_ENABLED=1

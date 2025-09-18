@@ -218,7 +218,7 @@ func main() {
 	temporalService := os.Getenv("SERVICES")
 	if temporalService != "" {
 		log.Printf("Starting service: %s", temporalService)
-		if temporalService != "frontend" && temporalService != "matching" && temporalService != "history" && temporalService != "worker" {
+		if temporalService != "frontend" && temporalService != "matching" && temporalService != "history" && temporalService != "worker" && temporalService != "internal-frontend" {
 			log.Fatalf("Invalid SERVICES: %s", temporalService)
 		}
 		startService = []string{temporalService}

@@ -22,18 +22,6 @@ web:
     - name: TEMPORAL_AUTH_SCOPES
       value: "openid,email,profile"
     
-    - name: TEMPORAL_OIDC_ISSUER_URL
-      valueFrom:
-        secretKeyRef:
-          name: temporal-auth-secrets
-          key: issuer_url
-
-    - name: TEMPORAL_OIDC_CLIENT_ID
-      valueFrom:
-        secretKeyRef:
-          name: temporal-auth-secrets
-          key: client_id
-    
     - name: TEMPORAL_AUTH_PROVIDER_URL
       valueFrom:
         secretKeyRef:

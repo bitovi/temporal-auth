@@ -39,8 +39,8 @@ type OIDCClaims struct {
 }
 
 func NewOIDCClaimMapper() authorization.ClaimMapper {
-	issuerURL := os.Getenv("TEMPORAL_OIDC_ISSUER_URL")
-	clientID := os.Getenv("TEMPORAL_OIDC_CLIENT_ID")
+	issuerURL := os.Getenv("TEMPORAL_AUTH_PROVIDER_URL")
+	clientID := os.Getenv("TEMPORAL_AUTH_CLIENT_ID")
 	jwksURL := issuerURL + "/.well-known/jwks.json"
 
 	keySet, err := jwk.Fetch(context.Background(), jwksURL)
@@ -149,6 +149,7 @@ func NewOIDCAuthorizer() authorization.Authorizer {
 type OIDCAuthorizer struct{}
 
 func (a *OIDCAuthorizer) Authorize(ctx context.Context, claims *authorization.Claims, target *authorization.CallTarget) (authorization.Result, error) {
+	log.Printf("Authorizing request: %s, claims: %+v, target: %+v", target.APIName, claims, target.Namespace)
 	// Allow health check APIs to everyone
 	if authorization.IsHealthCheckAPI(target.APIName) {
 		log.Printf("Health Check API Access Granted: %s", target.APIName)

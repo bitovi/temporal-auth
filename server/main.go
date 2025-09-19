@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"go.temporal.io/server/common/api"
 	"go.temporal.io/server/common/authorization"
 	"go.temporal.io/server/common/config"
 	"go.temporal.io/server/temporal"
@@ -41,11 +40,23 @@ type OIDCClaims struct {
 func NewOIDCClaimMapper() authorization.ClaimMapper {
 	issuerURL := os.Getenv("TEMPORAL_AUTH_PROVIDER_URL")
 	clientID := os.Getenv("TEMPORAL_AUTH_CLIENT_ID")
+
+	if issuerURL == "" {
+		log.Printf("WARNING: TEMPORAL_AUTH_PROVIDER_URL environment variable is not set")
+		return &OIDCClaimMapper{}
+	}
+
+	if clientID == "" {
+		log.Printf("WARNING: TEMPORAL_AUTH_CLIENT_ID environment variable is not set")
+		return &OIDCClaimMapper{}
+	}
+
 	jwksURL := issuerURL + "/.well-known/jwks.json"
+	log.Printf("Initializing OIDC with issuer: %s, client: %s", issuerURL, clientID)
 
 	keySet, err := jwk.Fetch(context.Background(), jwksURL)
 	if err != nil {
-		// Handle error appropriately for your application
+		log.Printf("Failed to fetch JWKS from %s: %v", jwksURL, err)
 		return &OIDCClaimMapper{}
 	}
 
@@ -83,7 +94,7 @@ func (c *OIDCClaimMapper) GetClaims(authInfo *authorization.AuthInfo) (*authoriz
 			authClaims.System = authorization.RoleAdmin
 
 		case strings.HasPrefix(group, "bitovi"):
-			// Audio team gets access to audio-* namespaces
+			// Bitovi team gets access to bitovi-* namespaces
 			authClaims.Namespaces["bitovi-project"] = authorization.RoleWriter
 			authClaims.Namespaces["bitovi-reviews"] = authorization.RoleReader
 
@@ -103,8 +114,15 @@ func (c *OIDCClaimMapper) GetClaims(authInfo *authorization.AuthInfo) (*authoriz
 func (c *OIDCClaimMapper) extractAndValidateToken(token string) (*OIDCClaims, error) {
 	token = strings.TrimPrefix(token, "Bearer ")
 
+	if c.issuerURL == "" {
+		return nil, fmt.Errorf("OIDC issuer URL is not configured")
+	}
+
 	// Fetch user info from OIDC provider
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/oidc/userinfo", c.issuerURL), nil)
+	userinfoURL := fmt.Sprintf("%s/api/oidc/userinfo", c.issuerURL)
+	log.Printf("Fetching userinfo from: %s", userinfoURL)
+
+	req, err := http.NewRequest("GET", userinfoURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create userinfo request: %w", err)
 	}
@@ -150,63 +168,41 @@ type OIDCAuthorizer struct{}
 
 func (a *OIDCAuthorizer) Authorize(ctx context.Context, claims *authorization.Claims, target *authorization.CallTarget) (authorization.Result, error) {
 	log.Printf("Authorizing request: %s, claims: %+v, target: %+v", target.APIName, claims, target.Namespace)
+
 	// Allow health check APIs to everyone
 	if authorization.IsHealthCheckAPI(target.APIName) {
 		log.Printf("Health Check API Access Granted: %s", target.APIName)
 		return decisionAllow, nil
 	}
 
-	// TODO:
-	// WHY are we getting no no claims and NO namespace...
-
-	if claims == nil || target.Namespace == "" {
-		log.Printf("No claims or namespace provided for request to %s -> ALLOWED, target: %+v", target.APIName, target)
+	// Allow all operations for system-level admins and writers
+	if claims != nil && claims.System&(authorization.RoleAdmin|authorization.RoleWriter) != 0 {
+		log.Printf("System admin/writer access granted for user: %s", claims.Subject)
 		return decisionAllow, nil
 	}
 
-	// Log request details
-	log.Printf("Authorization request: User=%s -> Namespace=%s, API=%s", claims.Subject, target.Namespace, target.APIName)
-
-	// Determine whether this is a cluster-wide or namespace-scoped API
-	metadata := api.GetMethodMetadata(target.APIName)
-
-	var userRole authorization.Role
-	switch metadata.Scope {
-	case api.ScopeCluster:
-		// System-wide role for cluster-level API
-		userRole = claims.System
-	case api.ScopeNamespace:
-		// System-wide roles apply across all namespaces
-		// If claims.Namespaces is nil or namespace isn't found, the lookup returns zero.
-		userRole = claims.System | claims.Namespaces[target.Namespace]
-	default:
-		log.Printf("Unknown API Scope -> DENIED: %s", target.APIName)
+	// For UpdateNamespace API, require writer role in the target namespace
+	if strings.Contains(target.APIName, "UpdateNamespace") {
+		if claims != nil && claims.Namespaces[target.Namespace]&authorization.RoleWriter != 0 {
+			log.Printf("UpdateNamespace access granted for user %s in namespace %s", claims.Subject, target.Namespace)
+			return decisionAllow, nil
+		}
+		log.Printf("UpdateNamespace access denied for user %s in namespace %s", claims.Subject, target.Namespace)
 		return decisionDeny, nil
 	}
 
-	// Get the required role for this API
-	requiredRole := getRequiredRole(metadata.Access)
-
-	// Check if the user meets the required role
-	if userRole >= requiredRole {
-		log.Printf("Access GRANTED: User=%s, Namespace=%s, API=%s", claims.Subject, target.Namespace, target.APIName)
-		return decisionAllow, nil
+	// For namespace-specific operations, check if user has any access to the namespace
+	if target.Namespace != "" && claims != nil {
+		userRole := claims.System | claims.Namespaces[target.Namespace]
+		if userRole == 0 {
+			log.Printf("User %s has no access to namespace %s -> DENIED", claims.Subject, target.Namespace)
+			return decisionDeny, nil
+		}
 	}
 
-	// Deny if no valid role was found
-	log.Printf("Access DENIED: User=%s, Namespace=%s, API=%s", claims.Subject, target.Namespace, target.APIName)
-	return decisionDeny, nil
-}
-
-func getRequiredRole(access api.Access) authorization.Role {
-	switch access {
-	case api.AccessReadOnly:
-		return authorization.RoleReader
-	case api.AccessWrite:
-		return authorization.RoleWriter
-	default:
-		return authorization.RoleAdmin
-	}
+	// Allow all other requests
+	log.Printf("Access GRANTED: User=%s, Namespace=%s, API=%s", claims.Subject, target.Namespace, target.APIName)
+	return decisionAllow, nil
 }
 
 // Custom Temporal Server with Authorization
@@ -247,6 +243,7 @@ func main() {
 	claim := NewOIDCAuthorizer()
 
 	if slices.Contains(startService, "internal-frontend") {
+		log.Printf("Using noop authentication for internal-frontend")
 		oidc = authorization.NewNoopClaimMapper()
 		claim = authorization.NewNoopAuthorizer()
 	}

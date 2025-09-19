@@ -10,6 +10,20 @@ server:
       value: /app/config
     - name: TEMPORAL_CONFIG_TEMPLATE_PATH
       value: /etc/temporal/config/config_template.yaml
+    # Server image requires these environment variables
+    - name: TEMPORAL_AUTH_PROVIDER_URL
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: issuer_url
+    - name: TEMPORAL_AUTH_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: temporal-auth-secrets
+          key: client_id
+
+  internalFrontend:
+    enabled: true
 
 web:
   additionalEnv:
@@ -39,9 +53,6 @@ web:
         secretKeyRef:
           name: temporal-auth-secrets
           key: client_secret
-
-  internalFrontend:
-    enabled: true
 
 # Services
 cassandra:

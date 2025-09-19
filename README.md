@@ -3,7 +3,7 @@
 
 This repository provides a custom authentication and authorization solution for Temporal, integrating with a custom OIDC provider for user authentication and role-based access control.
 
-> This is using Tilt for local development and using Docker Desktop for the Kubernetes cluster.
+> This is using Kind for local development and using Docker Desktop for the Kubernetes cluster.
 
 
 ## Features
@@ -38,6 +38,7 @@ kind create cluster --name temporal-custom-auth --wait 5m
 
 3. Build the docker iamge
 ```bash
+cd server/
 docker build -t temporal-auth:latest .
 ```
 
@@ -48,6 +49,7 @@ kind load docker-image temporal-auth:latest --name temporal-custom-auth
 
 5. Update and apply the values in [auth_secrets.yml](./infra/auth_secrets.yml)
 ```bash
+cd infra/
 kubectl apply -f auth_secrets.yml 
 ```
 

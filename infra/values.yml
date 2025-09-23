@@ -2,7 +2,9 @@ server:
   image: 
     repository: temporal-auth # Update to your custom repo+image
     tag: latest # Update to your custom tag
-    imagePullPolicy: Never # Only used for local testing
+    imagePullPolicy: Always
+  internalFrontend:
+    enabled: true
   additionalEnv:
     - name: TEMPORAL_CONFIG_FILENAME
       value: config
@@ -22,9 +24,6 @@ server:
           name: temporal-auth-secrets
           key: client_id
 
-  internalFrontend:
-    enabled: true
-
 web:
   additionalEnv:
     - name: TEMPORAL_AUTH_ENABLED
@@ -34,7 +33,7 @@ web:
       value: "http://localhost:8080/auth/sso/callback"
     
     - name: TEMPORAL_AUTH_SCOPES
-      value: "openid,email,profile"
+      value: "openid,email,profile,groups"
     
     - name: TEMPORAL_AUTH_PROVIDER_URL
       valueFrom:

@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"go.temporal.io/server/common/authorization"
 	"go.temporal.io/server/common/config"
 	"go.temporal.io/server/temporal"
@@ -30,11 +28,8 @@ type OIDCClaimMapper struct {
 }
 
 type OIDCClaims struct {
-	Subject           string   `json:"sub"`
-	Email             string   `json:"email"`
-	EmailVerified     bool     `json:"email_verified"`
-	Groups            []string `json:"groups"`
-	PreferredUsername string   `json:"preferred_username"`
+	Subject string   `json:"sub"`
+	Groups  []string `json:"groups"`
 }
 
 func NewOIDCClaimMapper() authorization.ClaimMapper {
@@ -42,22 +37,19 @@ func NewOIDCClaimMapper() authorization.ClaimMapper {
 	clientID := os.Getenv("TEMPORAL_AUTH_CLIENT_ID")
 
 	if issuerURL == "" {
-		log.Printf("WARNING: TEMPORAL_AUTH_PROVIDER_URL environment variable is not set")
-		return &OIDCClaimMapper{}
+		log.Fatalf("WARNING: TEMPORAL_AUTH_PROVIDER_URL environment variable is not set")
 	}
 
 	if clientID == "" {
-		log.Printf("WARNING: TEMPORAL_AUTH_CLIENT_ID environment variable is not set")
-		return &OIDCClaimMapper{}
+		log.Fatalf("WARNING: TEMPORAL_AUTH_CLIENT_ID environment variable is not set")
 	}
 
-	jwksURL := issuerURL + "/.well-known/jwks.json"
+	jwksURL := issuerURL + "/v1/keys"
 	log.Printf("Initializing OIDC with issuer: %s, client: %s", issuerURL, clientID)
 
 	keySet, err := jwk.Fetch(context.Background(), jwksURL)
 	if err != nil {
-		log.Printf("Failed to fetch JWKS from %s: %v", jwksURL, err)
-		return &OIDCClaimMapper{}
+		log.Fatalf("Failed to fetch JWKS from %s: %v", jwksURL, err)
 	}
 
 	return &OIDCClaimMapper{
@@ -86,22 +78,33 @@ func (c *OIDCClaimMapper) GetClaims(authInfo *authorization.AuthInfo) (*authoriz
 	authClaims.Subject = claims.Subject
 	authClaims.Namespaces = make(map[string]authorization.Role)
 
-	// Map PocketID groups to Temporal namespace access
+	// Map Okta groups to Temporal access
 	for _, group := range claims.Groups {
 		switch {
-		case group == "admin":
-			// Admins can access ALL namespaces
+		case group == "temporal:system:admin":
+			// System admins can access ALL namespaces
 			authClaims.System = authorization.RoleAdmin
+			log.Printf("User %s granted system admin access", claims.Subject)
 
-		case strings.HasPrefix(group, "bitovi"):
-			// Bitovi team gets access to bitovi-* namespaces
-			authClaims.Namespaces["bitovi-project"] = authorization.RoleWriter
-			authClaims.Namespaces["bitovi-reviews"] = authorization.RoleReader
+		case strings.HasPrefix(group, "temporal:namespace:"):
+			// Namespace-specific access: temporal:namespace:namespace-name:role
+			parts := strings.Split(group, ":")
+			if len(parts) >= 4 {
+				namespace := parts[2]
+				role := parts[3]
 
-		case strings.HasPrefix(group, "finance"):
-			// Finance team gets access to finance-* namespaces
-			authClaims.Namespaces["finance-reports"] = authorization.RoleWriter
-			authClaims.Namespaces["finance-audits"] = authorization.RoleReader
+				switch role {
+				case "admin":
+					authClaims.Namespaces[namespace] = authorization.RoleAdmin
+				case "writer":
+					authClaims.Namespaces[namespace] = authorization.RoleWriter
+				case "reader":
+					authClaims.Namespaces[namespace] = authorization.RoleReader
+				default:
+					log.Printf("Unknown role %s for namespace %s", role, namespace)
+				}
+				log.Printf("User %s granted %s access to namespace %s", claims.Subject, role, namespace)
+			}
 
 		default:
 			log.Printf("Ignoring group: %s", group)
@@ -118,45 +121,35 @@ func (c *OIDCClaimMapper) extractAndValidateToken(token string) (*OIDCClaims, er
 		return nil, fmt.Errorf("OIDC issuer URL is not configured")
 	}
 
-	// Fetch user info from OIDC provider
-	userinfoURL := fmt.Sprintf("%s/api/oidc/userinfo", c.issuerURL)
-	log.Printf("Fetching userinfo from: %s", userinfoURL)
-
-	req, err := http.NewRequest("GET", userinfoURL, nil)
+	// Parse and validate the JWT token
+	parsedToken, err := jwt.Parse([]byte(token), jwt.WithKeySet(c.keySet), jwt.WithValidate(true))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create userinfo request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch userinfo: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("userinfo request failed with status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed to parse JWT token: %w", err)
 	}
 
-	var userInfo struct {
-		Subject   string `json:"sub"`
-		Email     string `json:"email"`
-		Verified  bool   `json:"email_verified"`
-		Username  string `json:"preferred_username"`
-		Namespace string `json:"namespace"`
+	// Extract claims from the token
+	subject, _ := parsedToken.Get("sub")
+	groups, _ := parsedToken.Get("groups")
+
+	var groupsList []string
+	if groups != nil {
+		if groupsSlice, ok := groups.([]interface{}); ok {
+			for _, g := range groupsSlice {
+				if groupStr, ok := g.(string); ok {
+					groupsList = append(groupsList, groupStr)
+				}
+			}
+		}
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-		return nil, fmt.Errorf("failed to decode userinfo response: %w", err)
+	subjectStr := ""
+	if subject != nil {
+		subjectStr = fmt.Sprintf("%v", subject)
 	}
 
 	return &OIDCClaims{
-		Subject:           userInfo.Subject,
-		Email:             userInfo.Email,
-		EmailVerified:     userInfo.Verified,
-		PreferredUsername: userInfo.Username,
-		Groups:            strings.Split(userInfo.Namespace, ","),
+		Subject: subjectStr,
+		Groups:  groupsList,
 	}, nil
 }
 

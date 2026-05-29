@@ -1,11 +1,8 @@
 module temporal-auth
 
-go 1.23.2
-
-toolchain go1.23.4
+go 1.25
 
 require (
-	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/lestrrat-go/jwx/v2 v2.0.19
 	go.temporal.io/server v1.26.2
 )
@@ -17,7 +14,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.5.0 // indirect
 	cloud.google.com/go/iam v1.1.8 // indirect
 	cloud.google.com/go/storage v1.41.0 // indirect
-	github.com/apache/thrift v0.16.0 // indirect
+	github.com/apache/thrift v0.23.0 // indirect
 	github.com/aws/aws-sdk-go v1.53.15 // indirect
 	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
